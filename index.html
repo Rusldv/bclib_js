@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>crypto</title>
+    </head>
+    <body>
+        <h1>crypto</h1>
+		<button onclick="SendTx();">Send this TX</button>
+		<button onclick="GetTx();">Get TX</button>
+        <script type="text/javascript" src="./crypto/components/core-min.js"></script>
+		<script type="text/javascript" src="./crypto/components/sha256-min.js"></script>
+		<script type="text/javascript" src="./crypto/kjur/jsrsasign-all-min.js"></script>
+		<script type="text/javascript" src="./transaction.js"></script>
+		<script>
+			var tx = new Transaction();
+			tx.setType(1);
+			//tx.setPublicKey("046c72d72bb78c7f3be11c951da190c0e932a4577fefd8f56b0ffe72633f17ce9974b87682a7b49df61f5be04e33611c599b3336a9a98d54aea5bd0fa86eb83a17");
+			tx.setTimestamp(1591535502);
+			tx.addField(0, "code1");
+			tx.addField(1, "code2");
+
+			// new keys
+			var curve = "secp256r1";
+			var ec = new KJUR.crypto.ECDSA({"curve": curve});
+			var keypair = ec.generateKeyPairHex();
+			var priv = keypair.ecprvhex;
+			var pub = keypair.ecpubhex;
+			tx.setPublicKey(pub);
+			console.log("priv:", priv);
+			console.log("pub:", pub);
+
+			//tx.signed("98b6c810c1dd5b0cb44bea9532c30f11991fa50941acd79ce7dc5b11cc091dbd2ec7f05eca341cdd");
+			tx.signed(priv);
+			// Хешировать надо в конце, когда заданы все поля
+			tx.hashed();
+			//console.log(tx);
+			//console.log(tx.getSig("98b6c810c1dd5b0cb44bea9532c30f11991fa50941acd79ce7dc5b11cc091dbd2ec7f05eca341cdd"));
+			console.log(tx.getJSON());
+			console.log("WS Call");
+			console.log(tx.getSendingTx());
+			
+			// Connect to ws
+			var ws = new WebSocket("ws://localhost:8788")
+            // События подключения
+            ws.onopen = function() {
+                console.log("ws onopen")
+                ws.send('{"call":"test", "payload":"empty", "rand":"0"}'); // Передаем данные для авторизации
+            };
+            ws.onerror = function(err) {
+                console.log("ws error: " + err)
+            };
+            ws.onclose = function(ev) {
+                if(ev.wasClean) {
+                    console.log("WS closed is OK")
+                } else {
+                    console.log("WS closed is " + ev.code)
+                }
+            };
+            // Событие получения сообщения
+            ws.onmessage = function(ev) {
+                //console.log(ev); // ev.type и ev.data
+                res = JSON.parse(ev.data);
+                console.log("type:", ev.type, "\ndata:", res)
+            };
+            // Закрытие соединения
+            function wsClose() {
+                ws.close(1000, "Bye ws server");
+            }
+			
+			// Отправка
+			function SendTx() {
+				ws.send(tx.getSendingTx());
+			}
+			
+			// Запрос
+			function GetTx() {
+				txAddr = "ae20df25372f9c795533c2e7c5c5f5da368052e90f314a7b215157a3c57bbb52df94b1368ae01d8c8b0fdfff87371d059056666e2708ba97f9002707655f1bc4";
+				console.log("Get " + txAddr);
+				ws.send('{"call":"get_tx", "payload":"' + txAddr + '", "rand":"0"}');
+			}
+		</script>
+	</body>
+</html>
